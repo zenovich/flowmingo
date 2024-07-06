@@ -44,6 +44,9 @@ func main() {
 	// to the original output file (os.Stdout here).
 	capturedOutput := restore(true)
 
+	// Print something to stdout again
+	fmt.Println("This will not be captured")
+
 	// Analyze the captured output
 	fmt.Print("captured: ")
 	for _, chunk := range capturedOutput {
@@ -55,6 +58,7 @@ func main() {
 Output:
 ```
 This will be captured
+This will not be captured
 captured: This will be captured
 ```
 
