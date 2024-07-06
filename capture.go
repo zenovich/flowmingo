@@ -46,6 +46,8 @@ func pipeReader(r io.ReadCloser, outC chan<- *ChunkFromFile, finishCh chan<- boo
 // The boolean parameter indicates whether the captured output should be written to the original output files.
 type RestoreFunc func(passThroughOuts bool) []ChunkFromFile
 
+var hookBetweenRestoreCheckAndRestore func()
+
 // Capture captures the output to the given output files and returns a function
 // for stopping capturing, restoring the pointers to original output files and getting the captured output.
 //
@@ -76,16 +78,14 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 	outWFiles := make([]*os.File, len(outFiles))
 	for i, outFile := range outFiles {
 		outFile := outFile
-		loadedOutFile := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)))
-		origOutFiles[i] = *(*os.File)(unsafe.Pointer(&loadedOutFile)) // *outFile
 
 		outR, outW, _ := os.Pipe()
 		outWFiles[i] = outW
 
 		// Note that we replace the contents of the pointer, not the pointer itself
 		// *outFile = *outW
-		outWValue := *(*unsafe.Pointer)(unsafe.Pointer(outW))
-		atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), outWValue)
+		origOutFile := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), *(*unsafe.Pointer)(unsafe.Pointer(outW)))
+		origOutFiles[i] = *(*os.File)(unsafe.Pointer(&origOutFile)) // old *outFile
 
 		go pipeReader(outR, outC, finishCh, outFile)
 	}
@@ -109,23 +109,7 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 			panic(fmt.Sprintf("Capture function was already called for output files%v\n", origOutFiles))
 		}
 
-		for i, outFile := range outFiles {
-			loadedOutFile := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)))
-			if loadedOutFile != *(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])) { // *outFile != *outW
-				panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", i))
-			}
-		}
-
-		// Note: An original out file can be replaced by a concurrent goroutine between the check above and the code below,
-		// but we assume that is highly unlikely. Our package prevents that by locking the captureLock, but there is no way
-		// to prevent that in the user code.
-
-		for i, outFile := range outFiles {
-			// Note that we replace the contents of the pointers, not the pointers themselves
-			// *outFile = origOutFiles[i]
-			origOutFile := *(*unsafe.Pointer)(unsafe.Pointer(&origOutFiles[i]))
-			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), origOutFile)
-		}
+		restoreOutFiles(outFiles, outWFiles, origOutFiles)
 
 		for _, outW := range outWFiles {
 			_ = outW.Close()
@@ -144,6 +128,36 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 		}
 
 		return chunksFromPipes
+	}
+}
+
+func restoreOutFiles(outFiles []*os.File, outWFiles []*os.File, origOutFiles []os.File) {
+	for i, outFile := range outFiles {
+		loadedOutFile := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)))
+		if loadedOutFile != *(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])) { // *outFile != *outW
+			panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", i))
+		}
+	}
+
+	// Note: An original out file can be replaced by a concurrent goroutine between the check above and the code below,
+	// but we assume that it is highly unlikely. Our package prevents that by locking the captureLock, but there is no way
+	// to prevent that in the user code. In such a case, some output files can be left with the pipes attached if the code below panics.
+
+	// We want to be able to test this case though
+	if hookBetweenRestoreCheckAndRestore != nil {
+		hookBetweenRestoreCheckAndRestore()
+	}
+
+	for i, outFile := range outFiles {
+		// Note that we replace the contents of the pointers, not the pointers themselves
+		// *outFile = origOutFiles[i]
+		if !atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(outFile)),
+			*(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])),
+			*(*unsafe.Pointer)(unsafe.Pointer(&origOutFiles[i]))) {
+			// Highly unlikely case
+			panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", i))
+		}
 	}
 }
 
