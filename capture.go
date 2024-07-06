@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
+	"unsafe"
 )
 
 // ChunkFromFile represents a chunk of bytes that was captured from an output file.
@@ -74,11 +76,17 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 	outWFiles := make([]*os.File, len(outFiles))
 	for i, outFile := range outFiles {
 		outFile := outFile
-		origOutFiles[i] = *outFile
+		loadedOutFile := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)))
+		origOutFiles[i] = *(*os.File)(unsafe.Pointer(&loadedOutFile)) // *outFile
+
 		outR, outW, _ := os.Pipe()
 		outWFiles[i] = outW
+
 		// Note that we replace the contents of the pointer, not the pointer itself
-		*outFile = *outW
+		// *outFile = *outW
+		outWValue := *(*unsafe.Pointer)(unsafe.Pointer(outW))
+		atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), outWValue)
+
 		go pipeReader(outR, outC, finishCh, outFile)
 	}
 
@@ -102,13 +110,21 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 		}
 
 		for i, outFile := range outFiles {
-			if *outFile != *outWFiles[i] {
+			loadedOutFile := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)))
+			if loadedOutFile != *(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])) { // *outFile != *outW
 				panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", i))
 			}
 		}
+
+		// Note: An original out file can be replaced by a concurrent goroutine between the check above and the code below,
+		// but we assume that is highly unlikely. Our package prevents that by locking the captureLock, but there is no way
+		// to prevent that in the user code.
+
 		for i, outFile := range outFiles {
 			// Note that we replace the contents of the pointers, not the pointers themselves
-			*outFile = origOutFiles[i]
+			// *outFile = origOutFiles[i]
+			origOutFile := *(*unsafe.Pointer)(unsafe.Pointer(&origOutFiles[i]))
+			atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), origOutFile)
 		}
 
 		for _, outW := range outWFiles {
