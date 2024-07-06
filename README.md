@@ -10,6 +10,7 @@ FlowMinGo (output Flow Minimizer for Go) is a powerful and flexible package desi
 - **Restore Original State**: Restore the original state of output streams after capturing easily.
 - **Flexible Integration**: Integrate seamlessly with your existing Go projects.
 - **High Performance**: Optimized for performance and minimal overhead.
+- **Thread-Safe**: FlowMinGo is thread-safe and can be used in concurrent applications.
 
 ## Installation
 
