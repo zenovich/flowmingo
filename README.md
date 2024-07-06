@@ -1,5 +1,7 @@
 # FlowMinGo
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/zenovich/flowmingo.svg)](https://pkg.go.dev/github.com/zenovich/flowmingo)
+
 FlowMinGo (output Flow Minimizer for Go) is a powerful and flexible package designed with the goal of simplifying the process of capturing output stream files in Go applications. FlowMinGo provides robust utilities to capture standard output and error streams as well as other outputs efficiently.
 
 ## Features
@@ -8,7 +10,7 @@ FlowMinGo (output Flow Minimizer for Go) is a powerful and flexible package desi
 - **Restore Original State**: Restore the original state of output streams after capturing easily.
 - **Flexible Integration**: Integrate seamlessly with your existing Go projects.
 - **High Performance**: Optimized for performance and minimal overhead.
-    
+
 ## Installation
 
 To install FlowMinGo, use `go get`:
