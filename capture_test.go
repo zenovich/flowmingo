@@ -82,6 +82,10 @@ func TestCaptureStdoutAndStderr_CapturesAllWritesInChronologicalOrder_WithOutput
 	}
 }
 
+func TestCapture_Nil(t *testing.T) {
+	assertPanics(t, func() { flowmingo.Capture(nil) })
+}
+
 func TestRestoreFunc_DoesntAllowToBeCalledTwice(t *testing.T) {
 	restoreFunc := flowmingo.Capture(os.Stdout)
 	restoreFunc(true)

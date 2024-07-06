@@ -76,6 +76,13 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 
 	origOutFiles := make([]os.File, len(outFiles))
 	outWFiles := make([]*os.File, len(outFiles))
+
+	for i := range outFiles {
+		if outFiles[i] == nil {
+			panic(fmt.Sprintf("output file #%d is nil, nil pointers are not allowed", i))
+		}
+	}
+
 	for i, outFile := range outFiles {
 		outFile := outFile
 
