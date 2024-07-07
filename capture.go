@@ -21,17 +21,21 @@ type ChunkFromFile struct {
 
 var captureLock sync.Mutex
 
-func pipeReader(r io.ReadCloser, outC chan<- *ChunkFromFile, finishCh chan<- bool, outFile *os.File) {
-	reader := bufio.NewReader(r)
+func pipeReader(rStream io.ReadCloser, outC chan<- *ChunkFromFile, finishCh chan<- bool, outFile *os.File) {
+	reader := bufio.NewReader(rStream)
+
 	for {
 		readByte, err := reader.ReadByte()
 		if err != nil {
 			finishCh <- true
+
 			break
 		}
+
 		buffered := reader.Buffered()
 		bytesBlock := make([]byte, 0, buffered+1)
 		bytesBlock = append(bytesBlock, readByte)
+
 		for ; buffered > 0; buffered = reader.Buffered() {
 			peeked, _ := reader.Peek(buffered)
 			bytesBlock = append(bytesBlock, peeked...)
@@ -39,7 +43,8 @@ func pipeReader(r io.ReadCloser, outC chan<- *ChunkFromFile, finishCh chan<- boo
 		}
 		outC <- &ChunkFromFile{Chunk: bytesBlock, OutFile: outFile}
 	}
-	_ = r.Close()
+
+	_ = rStream.Close()
 }
 
 // RestoreFunc is a function that stops capturing, restores the pointers to original output files and returns the captured output.
@@ -70,12 +75,18 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 	captureLock.Lock()
 	defer captureLock.Unlock()
 
+	var chunksFromPipesLock sync.RWMutex
+
+	var needPassThrough bool
+
+	var chunksFromPipes []ChunkFromFile
+
 	outC := make(chan *ChunkFromFile)
 	finishCh := make(chan bool)
-	var chunksFromPipes []ChunkFromFile
 
 	origOutFiles := make([]os.File, len(outFiles))
 	outWFiles := make([]*os.File, len(outFiles))
+	outFilesOrigMap := make(map[*os.File]os.File, len(outFiles))
 
 	for i := range outFiles {
 		if outFiles[i] == nil {
@@ -83,16 +94,14 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 		}
 	}
 
-	for i, outFile := range outFiles {
+	for outFileNumber, outFile := range outFiles {
 		outFile := outFile
 
 		outR, outW, _ := os.Pipe()
-		outWFiles[i] = outW
+		outWFiles[outFileNumber] = outW
 
-		// Note that we replace the contents of the pointer, not the pointer itself
-		// *outFile = *outW
-		origOutFile := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), *(*unsafe.Pointer)(unsafe.Pointer(outW)))
-		origOutFiles[i] = *(*os.File)(unsafe.Pointer(&origOutFile)) // old *outFile
+		replaceOutFile(outFile, outW, &origOutFiles[outFileNumber])
+		outFilesOrigMap[outFile] = origOutFiles[outFileNumber]
 
 		go pipeReader(outR, outC, finishCh, outFile)
 	}
@@ -102,9 +111,29 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 			chunkFromPipe := <-outC
 			if chunkFromPipe == nil {
 				finishCh <- true
+
 				return
 			}
+
+			chunksFromPipesLock.Lock()
 			chunksFromPipes = append(chunksFromPipes, *chunkFromPipe)
+
+			// Pass the chunk to the original output files for the case
+			// when the restore function is called with passThroughOuts=true,
+			// and it has already flushed all the previous chunks,
+			// but hasn't closed the outWFiles yet.
+			//
+			// Since there is a tiny time window between restoring the out files and closing the outWFiles,
+			// there can be goroutines that have already started writing to the restored out files concurrently.
+			// This means that the chunks that were captured after the restore function was called
+			// can be written to the original output files after more recent concurrent writes.
+			// Note: it's only related to the writes happening after the restore function restored the out files and
+			// before the restore function closed outWFiles.
+			if needPassThrough {
+				origOutPipe := outFilesOrigMap[chunkFromPipe.OutFile]
+				_, _ = origOutPipe.Write(chunkFromPipe.Chunk)
+			}
+			chunksFromPipesLock.Unlock()
 		}
 	}()
 
@@ -113,35 +142,53 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 		defer captureLock.Unlock()
 
 		if outC == nil {
-			panic(fmt.Sprintf("Capture function was already called for output files%v\n", origOutFiles))
+			panic(fmt.Sprintf("Capture function was already called for output files %v\n", origOutFiles))
+		}
+
+		// flush the already captured chunks to the original output files before restoring out files
+		if passThroughOuts {
+			chunksFromPipesLock.RLock()
+			flushChunksToOrigPipes(chunksFromPipes, outFilesOrigMap)
+
+			needPassThrough = true
+			chunksFromPipesLock.RUnlock()
 		}
 
 		restoreOutFiles(outFiles, outWFiles, origOutFiles)
 
 		for _, outW := range outWFiles {
 			_ = outW.Close()
+
 			<-finishCh // wait for the out pipe reader to finish
 		}
 
 		outC <- nil // for old Golang versions
-		<-finishCh  // wait for the outC reader to finish
+
+		<-finishCh // wait for the outC reader to finish
 		close(outC)
 		outC = nil
 
 		close(finishCh)
 
-		if passThroughOuts {
-			flushChunks(chunksFromPipes)
-		}
-
 		return chunksFromPipes
 	}
 }
 
-func restoreOutFiles(outFiles []*os.File, outWFiles []*os.File, origOutFiles []os.File) {
+func replaceOutFile(outFile, outW, origOutFileToStore *os.File) {
+	// Note that we replace the contents of the pointer, not the pointer itself
+	//nolint:gosec // *outFile = *outW
+	origOutFile := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)), *(*unsafe.Pointer)(unsafe.Pointer(outW)))
+
+	//nolint:gosec // old *outFile
+	*origOutFileToStore = *(*os.File)(unsafe.Pointer(&origOutFile))
+}
+
+func restoreOutFiles(outFiles, outWFiles []*os.File, origOutFiles []os.File) {
 	for i, outFile := range outFiles {
+		//nolint:gosec // *outFile
 		loadedOutFile := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(outFile)))
-		if loadedOutFile != *(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])) { // *outFile != *outW
+		//nolint:gosec // *outFile != *outWFiles[i]
+		if loadedOutFile != *(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])) {
 			panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", i))
 		}
 	}
@@ -155,22 +202,23 @@ func restoreOutFiles(outFiles []*os.File, outWFiles []*os.File, origOutFiles []o
 		hookBetweenRestoreCheckAndRestore()
 	}
 
-	for i, outFile := range outFiles {
+	for outFileNumber, outFile := range outFiles {
 		// Note that we replace the contents of the pointers, not the pointers themselves
-		// *outFile = origOutFiles[i]
+		//nolint:gosec // *outFile = origOutFiles[outFileNumber]
 		if !atomic.CompareAndSwapPointer(
 			(*unsafe.Pointer)(unsafe.Pointer(outFile)),
-			*(*unsafe.Pointer)(unsafe.Pointer(outWFiles[i])),
-			*(*unsafe.Pointer)(unsafe.Pointer(&origOutFiles[i]))) {
+			*(*unsafe.Pointer)(unsafe.Pointer(outWFiles[outFileNumber])),
+			*(*unsafe.Pointer)(unsafe.Pointer(&origOutFiles[outFileNumber]))) {
 			// Highly unlikely case
-			panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", i))
+			panic(fmt.Sprintf("cannot restore because original out file #%d was changed from the outside", outFileNumber))
 		}
 	}
 }
 
-func flushChunks(chunks []ChunkFromFile) {
+func flushChunksToOrigPipes(chunks []ChunkFromFile, outFilesOrigMap map[*os.File]os.File) {
 	for _, chunk := range chunks {
-		_, _ = chunk.OutFile.Write(chunk.Chunk)
+		origOutPipe := outFilesOrigMap[chunk.OutFile]
+		_, _ = origOutPipe.Write(chunk.Chunk)
 	}
 }
 
