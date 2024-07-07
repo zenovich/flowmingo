@@ -88,6 +88,14 @@ func TestCapture_Nil(t *testing.T) {
 	assertPanics(t, func() { flowmingo.Capture(nil) })
 }
 
+func TestCapture_Duplicates(t *testing.T) {
+	assertPanics(t, func() { flowmingo.Capture(os.Stdout, os.Stdout) })
+}
+
+func TestCapture_Empty(t *testing.T) {
+	assertPanics(t, func() { flowmingo.Capture() })
+}
+
 func TestRestoreFunc_DoesntAllowToBeCalledTwice(t *testing.T) {
 	restoreFunc := flowmingo.Capture(os.Stdout)
 	restoreFunc(true)

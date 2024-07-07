@@ -56,6 +56,8 @@ var hookBetweenRestoreCheckAndRestore func()
 // Capture captures the output to the given output files and returns a function
 // for stopping capturing, restoring the pointers to original output files and getting the captured output.
 //
+// The list of output files must not be empty, must not contain nil pointers and must not contain duplicates.
+//
 // The output to the given output files is suppressed while capturing.
 //
 // The output is captured in "chunks from file", where each chunk contains a slice of bytes and the file
@@ -72,6 +74,10 @@ var hookBetweenRestoreCheckAndRestore func()
 // You can even call Capture with the already captured output files to stack the captures.
 // In this case, the returned "restore" functions should be called in the reverse order of the calls to Capture.
 func Capture(outFiles ...*os.File) RestoreFunc {
+	mustNotBeEmpty(outFiles)
+	mustNotContainNils(outFiles)
+	mustNotContainDuplicates(outFiles)
+
 	captureLock.Lock()
 	defer captureLock.Unlock()
 
@@ -87,12 +93,6 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 	origOutFiles := make([]os.File, len(outFiles))
 	outWFiles := make([]*os.File, len(outFiles))
 	outFilesOrigMap := make(map[*os.File]os.File, len(outFiles))
-
-	for i := range outFiles {
-		if outFiles[i] == nil {
-			panic(fmt.Sprintf("output file #%d is nil, nil pointers are not allowed", i))
-		}
-	}
 
 	for outFileNumber, outFile := range outFiles {
 		outFile := outFile
@@ -171,6 +171,31 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 		close(finishCh)
 
 		return chunksFromPipes
+	}
+}
+
+func mustNotContainDuplicates(outFiles []*os.File) {
+	outFilesMap := make(map[*os.File]struct{}, len(outFiles))
+	for _, outFile := range outFiles {
+		if _, ok := outFilesMap[outFile]; ok {
+			panic(fmt.Sprintf("output file %v is duplicated", outFile))
+		}
+
+		outFilesMap[outFile] = struct{}{}
+	}
+}
+
+func mustNotContainNils(outFiles []*os.File) {
+	for i := range outFiles {
+		if outFiles[i] == nil {
+			panic(fmt.Sprintf("output file #%d is nil, nil pointers are not allowed", i))
+		}
+	}
+}
+
+func mustNotBeEmpty(outFiles []*os.File) {
+	if len(outFiles) == 0 {
+		panic("no output files provided")
 	}
 }
 
