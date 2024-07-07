@@ -14,9 +14,11 @@ func TestCaptureStdoutAndStderr_CapturesAllWritesInChronologicalOrder_WithOutput
 	for _, doOutput := range []bool{true, false} {
 		doOutput := doOutput
 		testName := "WithOutput"
+
 		if !doOutput {
 			testName = "WithoutOutput"
 		}
+
 		t.Run(testName, func(t *testing.T) {
 			origStdout := os.Stdout
 			origStderr := os.Stderr
@@ -103,6 +105,8 @@ func TestRestoreFunc_ChecksIfOutputIsReplaced(t *testing.T) {
 }
 
 func assertEqualStrings(t *testing.T, expected, actual string) {
+	t.Helper()
+
 	if expected != actual {
 		t.Errorf("Not equal: \n"+
 			"expected: %s\n"+
@@ -111,6 +115,8 @@ func assertEqualStrings(t *testing.T, expected, actual string) {
 }
 
 func assertEqualInts(t *testing.T, expected, actual int) {
+	t.Helper()
+
 	if expected != actual {
 		t.Errorf("Not equal: \n"+
 			"expected: %d\n"+
@@ -119,6 +125,8 @@ func assertEqualInts(t *testing.T, expected, actual int) {
 }
 
 func assertEqualFiles(t *testing.T, expected, actual *os.File) {
+	t.Helper()
+
 	if expected != actual {
 		t.Errorf("Not equal: \n"+
 			"expected: %v\n"+
@@ -127,16 +135,20 @@ func assertEqualFiles(t *testing.T, expected, actual *os.File) {
 }
 
 func assertNoError(t *testing.T, err error) {
+	t.Helper()
+
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 }
 
-func assertPanics(t *testing.T, f func()) {
+func assertPanics(t *testing.T, funcToCall func()) {
+	t.Helper()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("The code did not panic")
 		}
 	}()
-	f()
+	funcToCall()
 }

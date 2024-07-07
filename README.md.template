@@ -39,7 +39,7 @@ go get {{.Package.Import}}
 
 Let's start by capturing the standard output:
 
-{{ template "example" .Package.ExternalExamples.Named "CaptureStdout" -}}
+{{ template "example" .Package.ExternalExamples.Named "_captureStdout" -}}
 
 ### Capturing Both Standard Outputs
 
@@ -51,13 +51,13 @@ FlowMinGo allows you to capture the output to `stdout` and `stderr` or any other
 
 You can also capture custom output streams with FlowMinGo. Here's an example:
 
-{{ template "example" .Package.ExternalExamples.Named "CaptureCustomOutputs" -}}
+{{ template "example" .Package.ExternalExamples.Named "_captureCustomOutputs" -}}
 
 ### Stackable Capturing
 
 FlowMinGo allows you to stack multiple captures on top of each other. Let's see how it works:
 
-{{ template "example" .Package.ExternalExamples.Named "StackableCapturing" -}}
+{{ template "example" .Package.ExternalExamples.Named "_stackableCapturing" -}}
 
 ## Contributing
 

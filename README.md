@@ -52,6 +52,7 @@ func main() {
 
 	// Analyze the captured output
 	fmt.Print("captured: ")
+
 	for _, chunk := range capturedOutput {
 		fmt.Printf("%s", chunk.Chunk)
 	}
@@ -120,16 +121,17 @@ func main() {
 		if chunk.OutFile == os.Stderr {
 			source = "stderr"
 		}
-		fmt.Printf("captured %s: %s", source, chunk.Chunk)
+
+		fmt.Printf("captured: %s: %s", source, chunk.Chunk)
 	}
 }
 ```
 
 Output:
 ```
-captured stdout: This will be captured
-captured stderr: This will be captured too
-captured stdout: This will be captured as well
+captured: stdout: This will be captured
+captured: stderr: This will be captured too
+captured: stdout: This will be captured as well
 ```
 
 ### Capturing Custom Output
@@ -156,6 +158,7 @@ func main() {
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		fmt.Println("Error creating pipe:", err)
+
 		return
 	}
 
@@ -175,14 +178,16 @@ func main() {
 	}
 
 	// Close the writer to avoid a deadlock in the next step
-	writer.Close()
+	_ = writer.Close()
 
 	// Here we read from the reader to demonstrate that the writer got the empty output
 	// as the output was suppressed and not passed through.
 	var whatWriterGot bytes.Buffer
+
 	_, err = io.Copy(&whatWriterGot, reader)
 	if err != nil {
 		fmt.Println("Error reading from pipe:", err)
+
 		return
 	}
 
@@ -190,7 +195,7 @@ func main() {
 	fmt.Printf("writer got: %s\n", whatWriterGot.String())
 
 	// Close the reader
-	reader.Close()
+	_ = reader.Close()
 }
 ```
 

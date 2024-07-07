@@ -10,8 +10,10 @@ import (
 	"github.com/zenovich/flowmingo"
 )
 
-// ExampleCaptureStdout demonstrates how to capture stdout.
-func ExampleCaptureStdout() {
+// Example_captureStdout demonstrates how to capture stdout.
+//
+//nolint:nosnakecase // example for the package
+func Example_captureStdout() {
 	// Capture os.Stdout suppressing the output
 	restore := flowmingo.Capture(os.Stdout)
 
@@ -28,6 +30,7 @@ func ExampleCaptureStdout() {
 
 	// Analyze the captured output
 	fmt.Print("captured: ")
+
 	for _, chunk := range capturedOutput {
 		fmt.Printf("%s", chunk.Chunk)
 	}
@@ -78,16 +81,19 @@ func ExampleCaptureStdoutAndStderr() {
 		if chunk.OutFile == os.Stderr {
 			source = "stderr"
 		}
-		fmt.Printf("captured %s: %s", source, chunk.Chunk)
+
+		fmt.Printf("captured: %s: %s", source, chunk.Chunk)
 	}
 	// Output:
-	// captured stdout: This will be captured
-	// captured stderr: This will be captured too
-	// captured stdout: This will be captured as well
+	// captured: stdout: This will be captured
+	// captured: stderr: This will be captured too
+	// captured: stdout: This will be captured as well
 }
 
-// ExampleCaptureCustomOutputs demonstrates how to capture custom output streams.
-func ExampleCaptureCustomOutputs() {
+// Example_captureCustomOutputs demonstrates how to capture custom output streams.
+//
+//nolint:nosnakecase // example for the package
+func Example_captureCustomOutputs() {
 	// Create a pipe, so we can write to it and read from it.
 	// The writer will be used as a custom output stream.
 	// If this part is unclear, please refer to the Go documentation on the `os.Pipe` function,
@@ -95,6 +101,7 @@ func ExampleCaptureCustomOutputs() {
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		fmt.Println("Error creating pipe:", err)
+
 		return
 	}
 
@@ -114,14 +121,16 @@ func ExampleCaptureCustomOutputs() {
 	}
 
 	// Close the writer to avoid a deadlock in the next step
-	writer.Close()
+	_ = writer.Close()
 
 	// Here we read from the reader to demonstrate that the writer got the empty output
 	// as the output was suppressed and not passed through.
 	var whatWriterGot bytes.Buffer
+
 	_, err = io.Copy(&whatWriterGot, reader)
 	if err != nil {
 		fmt.Println("Error reading from pipe:", err)
+
 		return
 	}
 
@@ -129,14 +138,16 @@ func ExampleCaptureCustomOutputs() {
 	fmt.Printf("writer got: %s\n", whatWriterGot.String())
 
 	// Close the reader
-	reader.Close()
+	_ = reader.Close()
 	// Output:
 	// captured: This will be captured
 	// writer got:
 }
 
-// ExampleStackableCapturing demonstrates how to stack multiple captures.
-func ExampleStackableCapturing() {
+// Example_stackableCapturing demonstrates how to stack multiple captures.
+//
+//nolint:nosnakecase // example for the package
+func Example_stackableCapturing() {
 	// Capture os.Stdout suppressing the output
 	restore1 := flowmingo.Capture(os.Stdout)
 	// Capture os.Stdout again suppressing the output to the first capture
