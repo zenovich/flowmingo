@@ -23,11 +23,13 @@ func TestRestoreFunc_ChecksIfOutputIsReplacedRightAfterChecking(t *testing.T) {
 	assertPanics(t, func() { restoreFunc1(true) })
 }
 
-func assertPanics(t *testing.T, f func()) {
+func assertPanics(t *testing.T, funcToCall func()) {
+	t.Helper()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("The code did not panic")
 		}
 	}()
-	f()
+	funcToCall()
 }
