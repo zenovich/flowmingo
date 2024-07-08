@@ -129,6 +129,9 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 			// can be written to the original output files after more recent concurrent writes.
 			// Note: it's only related to the writes happening after the restore function restored the out files and
 			// before the restore function closed outWFiles.
+			//
+			// Anyway, remember that FlowMinGo is not thread-safe for now because it doesn't acquire the write lock
+			// on os.File upon replacing. Strange things may happen on concurrent writes at moments of replacing/restoring.
 			if needPassThrough {
 				origOutPipe := outFilesOrigMap[chunkFromPipe.OutFile]
 				_, _ = origOutPipe.Write(chunkFromPipe.Chunk)
