@@ -15,7 +15,7 @@ FlowMinGo (output Flow Minimizer for Go) is a powerful and flexible package desi
 
 ## TODO
 
-- ** Make FlowMinGo thread-safe.
+- **Make FlowMinGo thread-safe**.
 
 ## Installation
 
