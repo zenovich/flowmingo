@@ -16,7 +16,13 @@ FlowMinGo (output Flow Minimizer for Go) is a powerful and flexible package desi
 - **Capture Output Streams**: Easily capture and manipulate `stdout` and `stderr` streams or other file outputs.
 - **Restore Original State**: Restore the original state of output streams after capturing easily.
 - **Flexible Integration**: Integrate seamlessly with your existing Go projects.
+- **No Dependencies**: FlowMinGo is a standalone package with no dependencies.
+- **Non-Blocking**: FlowMinGo is non-blocking and doesn't interfere with the flow of your application.
 - **High Performance**: Optimized for performance and minimal overhead.
+
+## TODO
+
+- ** Make FlowMinGo thread-safe.
 
 {{- $modDocs := not .Module.Documentation.Empty -}}
 {{- if and .ProjectRoot $modDocs -}}
@@ -51,6 +57,12 @@ FlowMinGo allows you to capture the output to `stdout` and `stderr` or any other
 You can also capture custom output streams with FlowMinGo. Here's an example:
 
 {{ template "example" .Package.ExternalExamples.Named "_captureCustomOutputs" -}}
+
+### Capturing Command Output
+
+You can also capture the output of an external command with FlowMinGo. Here's an example:
+
+{{ template "example" .Package.ExternalExamples.Named "_captureCmdOutputs" -}}
 
 ### Stackable Capturing
 

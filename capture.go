@@ -88,7 +88,7 @@ func Capture(outFiles ...*os.File) RestoreFunc {
 	var chunksFromPipes []ChunkFromFile
 
 	outC := make(chan *ChunkFromFile)
-	finishCh := make(chan bool)
+	finishCh := make(chan bool, len(outFiles)) // Do not block on external close
 
 	origOutFiles := make([]os.File, len(outFiles))
 	outWFiles := make([]*os.File, len(outFiles))

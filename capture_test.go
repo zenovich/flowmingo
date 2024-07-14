@@ -96,6 +96,23 @@ func TestCapture_Empty(t *testing.T) {
 	assertPanics(t, func() { flowmingo.Capture() })
 }
 
+func TestCapture_EmptyOutput(t *testing.T) {
+	restore := flowmingo.Capture(os.Stdout)
+	chunks := restore(false)
+	if len(chunks) != 0 {
+		t.Errorf("Expected no chunks, got %d", len(chunks))
+	}
+}
+
+func TestCapture_EmptyWrite(t *testing.T) {
+	restore := flowmingo.Capture(os.Stdout)
+	_, _ = os.Stdout.Write([]byte{})
+	chunks := restore(false)
+	if len(chunks) != 0 {
+		t.Errorf("Expected no chunks, got %d", len(chunks))
+	}
+}
+
 func TestRestoreFunc_DoesntAllowToBeCalledTwice(t *testing.T) {
 	restoreFunc := flowmingo.Capture(os.Stdout)
 	restoreFunc(true)

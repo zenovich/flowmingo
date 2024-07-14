@@ -9,7 +9,13 @@ FlowMinGo (output Flow Minimizer for Go) is a powerful and flexible package desi
 - **Capture Output Streams**: Easily capture and manipulate `stdout` and `stderr` streams or other file outputs.
 - **Restore Original State**: Restore the original state of output streams after capturing easily.
 - **Flexible Integration**: Integrate seamlessly with your existing Go projects.
+- **No Dependencies**: FlowMinGo is a standalone package with no dependencies.
+- **Non-Blocking**: FlowMinGo is non-blocking and doesn't interfere with the flow of your application.
 - **High Performance**: Optimized for performance and minimal overhead.
+
+## TODO
+
+- ** Make FlowMinGo thread-safe.
 
 ## Installation
 
@@ -202,6 +208,74 @@ Output:
 ```
 captured: This will be captured
 writer got:
+```
+
+### Capturing Command Output
+
+You can also capture the output of an external command with FlowMinGo. Here's an example:
+
+```go
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+
+	"github.com/zenovich/flowmingo"
+)
+
+func main() {
+	// Create pipes for out and err
+	// This part is for the stdout
+	cmdOutReader, cmdOutWriter, err := os.Pipe()
+	if err != nil {
+		panic(fmt.Sprintf("Error creating pipe: %s", err))
+	}
+	defer func() { _ = cmdOutReader.Close() }()
+	defer func() { _ = cmdOutWriter.Close() }()
+
+	// This part is for the stderr (optional)
+	cmdErrReader, cmdErrWriter, err := os.Pipe()
+	if err != nil {
+		panic(fmt.Sprintf("Error creating pipe: %s", err))
+	}
+	defer func() { _ = cmdErrReader.Close() }()
+	defer func() { _ = cmdErrWriter.Close() }()
+
+	// Create a command to run
+	cmd := exec.Command("echo", "test")
+
+	// Set the command's stdout and stderr to the writer ends of the pipes
+	cmd.Stdout = cmdOutWriter
+	cmd.Stderr = cmdErrWriter // optional
+
+	// Capture the command's stdout and stderr
+	getOuts := flowmingo.Capture(cmdOutWriter, cmdErrWriter /*optional*/)
+
+	// Run the command
+	err = cmd.Run()
+	if err != nil {
+		panic(fmt.Sprintf("Error running the command: %s", err))
+	}
+
+	capturedOutput := getOuts(false)
+
+	for _, chunk := range capturedOutput {
+		source := "out"
+		if chunk.OutFile == cmdErrWriter {
+			source = "err"
+		}
+
+		fmt.Printf("captured: %s: %s", source, chunk.Chunk)
+	}
+
+}
+```
+
+Output:
+```
+captured: out: test
 ```
 
 ### Stackable Capturing

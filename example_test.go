@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/zenovich/flowmingo"
@@ -166,4 +167,56 @@ func Example_stackableCapturing() {
 	restore1(true)
 	// Output:
 	// This will be captured only by the first capture
+}
+
+// Example_captureCmdOutputs demonstrates how to capture outputs of an external command.
+//
+//nolint:nosnakecase // example for the package
+func Example_captureCmdOutputs() {
+	// Create pipes for out and err
+	// This part is for the stdout
+	cmdOutReader, cmdOutWriter, err := os.Pipe()
+	if err != nil {
+		panic(fmt.Sprintf("Error creating pipe: %s", err))
+	}
+	defer func() { _ = cmdOutReader.Close() }()
+	defer func() { _ = cmdOutWriter.Close() }()
+
+	// This part is for the stderr (optional)
+	cmdErrReader, cmdErrWriter, err := os.Pipe()
+	if err != nil {
+		panic(fmt.Sprintf("Error creating pipe: %s", err))
+	}
+	defer func() { _ = cmdErrReader.Close() }()
+	defer func() { _ = cmdErrWriter.Close() }()
+
+	// Create a command to run
+	cmd := exec.Command("echo", "test")
+
+	// Set the command's stdout and stderr to the writer ends of the pipes
+	cmd.Stdout = cmdOutWriter
+	cmd.Stderr = cmdErrWriter // optional
+
+	// Capture the command's stdout and stderr
+	getOuts := flowmingo.Capture(cmdOutWriter, cmdErrWriter /*optional*/)
+
+	// Run the command
+	err = cmd.Run()
+	if err != nil {
+		panic(fmt.Sprintf("Error running the command: %s", err))
+	}
+
+	capturedOutput := getOuts(false)
+
+	for _, chunk := range capturedOutput {
+		source := "out"
+		if chunk.OutFile == cmdErrWriter {
+			source = "err"
+		}
+
+		fmt.Printf("captured: %s: %s", source, chunk.Chunk)
+	}
+
+	// Output:
+	// captured: out: test
 }
